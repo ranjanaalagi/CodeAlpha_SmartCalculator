@@ -1,0 +1,148 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Calcula — Simple Calculator</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Space+Grotesk:wght@400;500;600;700&display=swap');
+:root{--bg:#eef1f7;--card:#fff;--ink:#202538;--muted:#81879b;--accent:#6658e8;--soft:#f0efff;--line:#e8eaf1;--shadow:0 24px 70px rgba(40,45,80,.14)}
+*{box-sizing:border-box}
+body{margin:0;min-height:100vh;display:grid;place-items:center;padding:24px;background:radial-gradient(circle at 10% 10%,#dce4ff 0,transparent 35%),radial-gradient(circle at 90% 90%,#f8e4ff 0,transparent 30%),var(--bg);font-family:'DM Sans',Arial,sans-serif;color:var(--ink)}
+button{font:inherit;cursor:pointer;touch-action:manipulation}
+.app{width:min(100%,390px);background:var(--card);border:1px solid rgba(255,255,255,.8);border-radius:30px;padding:25px;box-shadow:var(--shadow)}
+.header{display:flex;justify-content:space-between;align-items:center;margin-bottom:23px}
+.brand{display:flex;align-items:center;gap:10px;font-size:15px;font-weight:700;letter-spacing:.2px}
+.logo{width:34px;height:34px;border-radius:12px;display:grid;place-items:center;background:var(--accent);color:white;font-size:19px}
+.badge{font-size:10px;letter-spacing:1.2px;text-transform:uppercase;color:var(--muted);background:#f5f6fa;padding:7px 9px;border-radius:20px}
+.display{min-height:154px;padding:20px 4px 22px;display:flex;flex-direction:column;justify-content:flex-end;align-items:flex-end;overflow:hidden}
+.expression{width:100%;min-height:25px;text-align:right;color:var(--muted);font-size:15px;overflow-wrap:anywhere}
+.result{width:100%;text-align:right;font-family:'Space Grotesk',sans-serif;font-size:clamp(38px,10vw,52px);font-weight:600;letter-spacing:-2px;line-height:1.25;overflow-wrap:anywhere}
+.keypad{display:grid;grid-template-columns:repeat(4,1fr);gap:11px}
+.key{height:61px;border:0;border-radius:18px;background:#f5f6fa;color:var(--ink);font-size:20px;font-weight:600;transition:transform .12s,background .12s}
+.key:active{transform:scale(.95)}
+.key.function{background:#f0efff;color:var(--accent)}
+.key.operator{background:#f0efff;color:var(--accent);font-size:23px}
+.key.equals{background:var(--accent);color:white;box-shadow:0 8px 18px rgba(102,88,232,.25)}
+.key.zero{grid-column:span 2}
+.key.clear{color:#e15c76;background:#fff0f3}
+.hint{text-align:center;color:#a0a5b5;font-size:11px;margin:19px 0 0}
+@media(max-width:380px){.app{padding:19px;border-radius:25px}.keypad{gap:8px}.key{height:56px;border-radius:15px}.display{min-height:135px}}
+</style>
+</head>
+<body>
+<main class="app" aria-label="Calculator">
+  <header class="header">
+    <div class="brand"><span class="logo">÷</span> Calcula</div>
+    <span class="badge">Calculator</span>
+  </header>
+  <section class="display" aria-live="polite">
+    <div class="expression" id="expression">Ready to calculate</div>
+    <div class="result" id="result">0</div>
+  </section>
+  <section class="keypad" aria-label="Calculator keys">
+    <button class="key clear" data-action="clear">AC</button>
+    <button class="key function" data-action="delete">DEL</button>
+    <button class="key function" data-action="percent">%</button>
+    <button class="key operator" data-operator="÷">÷</button>
+    <button class="key" data-number="7">7</button>
+    <button class="key" data-number="8">8</button>
+    <button class="key" data-number="9">9</button>
+    <button class="key operator" data-operator="×">×</button>
+    <button class="key" data-number="4">4</button>
+    <button class="key" data-number="5">5</button>
+    <button class="key" data-number="6">6</button>
+    <button class="key operator" data-operator="−">−</button>
+    <button class="key" data-number="1">1</button>
+    <button class="key" data-number="2">2</button>
+    <button class="key" data-number="3">3</button>
+    <button class="key operator" data-operator="+">+</button>
+    <button class="key zero" data-number="0">0</button>
+    <button class="key" data-action="decimal">.</button>
+    <button class="key equals" data-action="equals">=</button>
+  </section>
+  <p class="hint">Keyboard supported · Made for quick calculations</p>
+</main>
+<script>
+const resultEl = document.getElementById('result');
+const expressionEl = document.getElementById('expression');
+let current = '0', previous = null, operator = null, waiting = false, justCalculated = false;
+function render(){ resultEl.textContent = current; }
+function prettyOperator(op){return ({'+':'+','-':'−','*':'×','/':'÷'})[op] || op;}
+function formatNumber(n){
+  if(!Number.isFinite(n)) return 'Error';
+  if(Math.abs(n) > 999999999999 || (Math.abs(n) > 0 && Math.abs(n) < 0.0000001)) return n.toExponential(5);
+  return String(Number(n.toPrecision(12)));
+}
+function inputNumber(n){
+  if(current === 'Error' || waiting || justCalculated){current=n;waiting=false;justCalculated=false;}
+  else if(current === '0') current=n;
+  else if(current.replace('-','').replace('.','').length < 14) current+=n;
+  render();
+}
+function inputDecimal(){
+  if(current==='Error' || waiting || justCalculated){current='0.';waiting=false;justCalculated=false;}
+  else if(!current.includes('.')) current+='.';
+  render();
+}
+function calculate(a,b,op){
+  if(op==='+') return a+b;
+  if(op==='-') return a-b;
+  if(op==='*') return a*b;
+  if(op==='/') return b===0 ? NaN : a/b;
+  return b;
+}
+function chooseOperator(next){
+  if(current==='Error') return;
+  const input = Number(current);
+  if(operator && !waiting){
+    const value=calculate(previous,input,operator);
+    current=formatNumber(value);
+    if(current==='Error'){previous=null;operator=null;expressionEl.textContent='Cannot divide by zero';render();return;}
+    previous=Number(current);
+    render();
+  } else previous=input;
+  operator=next;waiting=true;justCalculated=false;
+  expressionEl.textContent=formatNumber(previous)+' '+prettyOperator(operator);
+}
+function equals(){
+  if(operator===null || waiting || current==='Error') return;
+  const a=previous,b=Number(current),op=operator;
+  const value=calculate(a,b,op);
+  expressionEl.textContent=formatNumber(a)+' '+prettyOperator(op)+' '+formatNumber(b)+' =';
+  current=formatNumber(value);previous=null;operator=null;waiting=false;justCalculated=true;
+  if(current==='Error') expressionEl.textContent='Cannot divide by zero';
+  render();
+}
+function clearAll(){current='0';previous=null;operator=null;waiting=false;justCalculated=false;expressionEl.textContent='Ready to calculate';render();}
+function deleteLast(){
+  if(current==='Error' || waiting || justCalculated){current='0';waiting=false;justCalculated=false;}
+  else current=current.length>1?current.slice(0,-1):'0';
+  render();
+}
+function percent(){
+  if(current==='Error') return;
+  current=formatNumber(Number(current)/100);render();
+}
+document.querySelector('.keypad').addEventListener('click',e=>{
+  const btn=e.target.closest('button');if(!btn)return;
+  if(btn.dataset.number!==undefined) inputNumber(btn.dataset.number);
+  else if(btn.dataset.operator) chooseOperator(({'+':'+','−':'-','×':'*','÷':'/'})[btn.dataset.operator]);
+  else if(btn.dataset.action==='decimal') inputDecimal();
+  else if(btn.dataset.action==='clear') clearAll();
+  else if(btn.dataset.action==='delete') deleteLast();
+  else if(btn.dataset.action==='percent') percent();
+  else if(btn.dataset.action==='equals') equals();
+});
+document.addEventListener('keydown',e=>{
+  if(/^[0-9]$/.test(e.key)){inputNumber(e.key);e.preventDefault();}
+  else if(e.key==='.' || e.key===','){inputDecimal();e.preventDefault();}
+  else if(['+','-','*','/'].includes(e.key)){chooseOperator(e.key);e.preventDefault();}
+  else if(e.key==='Enter' || e.key==='='){equals();e.preventDefault();}
+  else if(e.key==='Backspace'){deleteLast();e.preventDefault();}
+  else if(e.key==='Escape' || e.key==='Delete'){clearAll();e.preventDefault();}
+  else if(e.key==='%'){percent();e.preventDefault();}
+});
+</script>
+</body>
+</html>
